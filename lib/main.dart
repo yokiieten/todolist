@@ -93,7 +93,14 @@ class _TodoListPageState extends State<TodoListPage> {
                     itemCount: _todos.length,
                     itemBuilder: (context, index) {
                       return ListTile(
-                        leading: const Icon(Icons.check_box_outline_blank),
+                        leading: Image.asset(
+                          'assets/images/my_todo_icon.png',
+                          width: 24,
+                          height: 24,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(Icons.check_box_outline_blank);
+                          },
+                        ),
                         title: Text(_todos[index]),
                         trailing: IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red),
