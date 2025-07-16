@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:math';
+import 'todo_model.dart';
+import 'todo_storage.dart';
 
 void main() {
   runApp(const MyApp());
@@ -28,31 +31,64 @@ class TodoListPage extends StatefulWidget {
 }
 
 class _TodoListPageState extends State<TodoListPage> {
-  final List<String> _todos = [];
-  final List<bool> _completed = []; // เพิ่มสถานะการทำเสร็จ
+  final List<Todo> _todos = [];
   final TextEditingController _controller = TextEditingController();
+  final TodoStorage _storage = TodoStorage();
+  bool _isLoading = true;
 
-  void _addTodo() {
+  void _addTodo() async {
     if (_controller.text.isNotEmpty) {
-      setState(() {
-        _todos.add(_controller.text);
-        _completed.add(false); // เพิ่มสถานะเริ่มต้นเป็น false
-        _controller.clear();
-      });
+      final newTodo = Todo(
+        id: _generateId(),
+        title: _controller.text,
+        completed: false,
+        createdAt: DateTime.now(),
+      );
+      
+      await _storage.addTodo(newTodo);
+      _loadTodos();
+      _controller.clear();
     }
   }
 
-  void _removeTodo(int index) {
+  String _generateId() {
+    return DateTime.now().millisecondsSinceEpoch.toString() + 
+           Random().nextInt(1000).toString();
+  }
+
+  void _removeTodo(int index) async {
+    final todo = _todos[index];
+    await _storage.deleteTodo(todo.id);
+    _loadTodos();
+  }
+
+  void _toggleTodo(int index) async {
+    final todo = _todos[index];
+    await _storage.toggleTodo(todo.id);
+    _loadTodos();
+  }
+
+  Future<void> _loadTodos() async {
     setState(() {
-      _todos.removeAt(index);
-      _completed.removeAt(index); // ลบสถานะด้วย
+      _isLoading = true;
+    });
+    
+    final todos = await _storage.loadTodos();
+    setState(() {
+      _todos.clear();
+      _todos.addAll(todos);
+      _isLoading = false;
     });
   }
 
-  void _toggleTodo(int index) {
-    setState(() {
-      _completed[index] = !_completed[index]; // สลับสถานะ
-    });
+  @override
+  void initState() {
+    super.initState();
+    _loadTodos();
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -90,52 +126,61 @@ class _TodoListPageState extends State<TodoListPage> {
           ),
           // Todo list
           Expanded(
-            child: _todos.isEmpty
+            child: _isLoading
                 ? const Center(
-                    child: Text(
-                      'ยังไม่มีงานที่ต้องทำ\nลองเพิ่มงานใหม่ดูสิ!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 18, color: Colors.grey),
-                    ),
+                    child: CircularProgressIndicator(),
                   )
-                : ListView.builder(
-                    itemCount: _todos.length,
-                    itemBuilder: (context, index) {
-                      return ListTile(
-                        leading: GestureDetector(
-                          onTap: () => _toggleTodo(index),
-                          child: Image.asset(
-                            _completed[index] 
-                              ? 'assets/images/todo_checked.png'  // รูปที่ทำเสร็จแล้ว
-                              : 'assets/images/my_todo_icon.png', // รูปที่ยังไม่ได้ทำ
-                            width: 24,
-                            height: 24,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Icon(
-                                _completed[index] 
-                                  ? Icons.check_box 
-                                  : Icons.check_box_outline_blank,
-                                color: _completed[index] ? Colors.green : Colors.grey,
-                              );
-                            },
-                          ),
+                : _todos.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'ยังไม่มีงานที่ต้องทำ\nลองเพิ่มงานใหม่ดูสิ!',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 18, color: Colors.grey),
                         ),
-                        title: Text(
-                          _todos[index],
-                          style: TextStyle(
-                            decoration: _completed[index] 
-                              ? TextDecoration.lineThrough 
-                              : TextDecoration.none,
-                            color: _completed[index] ? Colors.grey : Colors.black,
-                          ),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _removeTodo(index),
-                        ),
-                      );
-                    },
-                  ),
+                      )
+                    : ListView.builder(
+                        itemCount: _todos.length,
+                        itemBuilder: (context, index) {
+                          final todo = _todos[index];
+                          return ListTile(
+                            leading: GestureDetector(
+                              onTap: () => _toggleTodo(index),
+                              child: Image.asset(
+                                todo.completed 
+                                  ? 'assets/images/todo_checked.png'  // รูปที่ทำเสร็จแล้ว
+                                  : 'assets/images/my_todo_icon.png', // รูปที่ยังไม่ได้ทำ
+                                width: 24,
+                                height: 24,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Icon(
+                                    todo.completed 
+                                      ? Icons.check_box 
+                                      : Icons.check_box_outline_blank,
+                                    color: todo.completed ? Colors.green : Colors.grey,
+                                  );
+                                },
+                              ),
+                            ),
+                            title: Text(
+                              todo.title,
+                              style: TextStyle(
+                                decoration: todo.completed 
+                                  ? TextDecoration.lineThrough 
+                                  : TextDecoration.none,
+                                color: todo.completed ? Colors.grey : Colors.black,
+                              ),
+                            ),
+                            subtitle: Text(
+                              'สร้างเมื่อ: ${_formatDate(todo.createdAt)}',
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => _removeTodo(index),
+                            ),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
