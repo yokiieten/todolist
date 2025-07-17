@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:math';
 import 'todo_model.dart';
 import 'todo_storage.dart';
+import 'test_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -48,6 +49,25 @@ class _TodoListPageState extends State<TodoListPage> {
       await _storage.addTodo(newTodo);
       _loadTodos();
       _controller.clear();
+      
+      // แสดง dialog หลังจากเพิ่ม todo สำเร็จ
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text('สำเร็จ!'),
+              content: Text('เพิ่ม "${newTodo.title}" เรียบร้อยแล้ว'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('ตกลง'),
+                ),
+              ],
+            );
+          },
+        );
+      }
     }
   }
 
@@ -178,6 +198,14 @@ class _TodoListPageState extends State<TodoListPage> {
                               icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () => _removeTodo(index),
                             ),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => TestPage(todo: todo),
+                                ),
+                              );
+                            },
                           );
                         },
                       ),
